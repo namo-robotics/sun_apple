@@ -16,6 +16,8 @@ int sa_capture_poll(void *session);
 const char *sa_capture_error(void *session);
 /** Starts a silent stream or PNG screenshot at a caller-chosen path, after selection. */
 void sa_capture_start(void *session, int recording, int cursor, const char *path);
+/** Starts live camera composition and microphone capture into fragmented H.264/AAC MP4. */
+void sa_capture_start_live(void *session, int cursor, const char *path, int camera, int microphone, int corner, int size);
 /** Stops a stream asynchronously; completion is reported by poll. */
 void sa_capture_stop(void *session);
 /** Allocates a UTF-8 UUID string; release with sa_string_free. */

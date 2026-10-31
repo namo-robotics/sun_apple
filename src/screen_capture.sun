@@ -26,6 +26,17 @@ public module apple_screen_capture {
     path: raw_ptr<u8>
   ) void;
 
+  /** Starts a bounded native compositor and MP4 writer after selection. */
+  extern "C" function sa_capture_start_live(
+    session: raw_ptr<u8>,
+    cursor: i32,
+    path: raw_ptr<u8>,
+    camera: i32,
+    microphone: i32,
+    corner: i32,
+    size: i32
+  ) void;
+
   /** Asynchronously stops the native stream. */
   extern "C" function sa_capture_stop(session: raw_ptr<u8>) void;
 
@@ -122,6 +133,44 @@ public module apple_screen_capture {
       }
       this.started = true;
       unsafe { sa_capture_start(this.pointer, recording ? 1 : 0, cursor ? 1 : 0, path.c_str()); };
+      return SystemResult.Ok;
+    }
+
+    /** Records the screen with optional camera and microphone using bounded native frame buffers. */
+    public method start_live(
+      cursor: bool,
+      path: ref String,
+      camera: bool,
+      microphone: bool,
+      corner: i32,
+      size: i32
+    ) SystemResult<void> {
+      if (this.pointer == null or not this.selected or this.started or path.is_empty() or
+        corner < 0 or corner > 3 or size < 0 or size > 2) {
+        return SystemResult.Error(
+          Error(1, "Capture is not ready or the camera layout is invalid")
+        );
+      }
+      for (var i: i64 = 0; i < path.length(); i += 1) {
+        if (match path.at(i) {
+          AccessResult.Ok(value) => value == 0,
+          AccessResult.OutOfBounds(_) => true
+        }) {
+          return SystemResult.Error(Error(1, "Capture path contains a NUL byte"));
+        }
+      }
+      this.started = true;
+      unsafe {
+        sa_capture_start_live(
+          this.pointer,
+          cursor ? 1 : 0,
+          path.c_str(),
+          camera ? 1 : 0,
+          microphone ? 1 : 0,
+          corner,
+          size
+        );
+      };
       return SystemResult.Ok;
     }
 

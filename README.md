@@ -11,7 +11,12 @@ Requires Sun and Xcode Command Line Tools. Set `SUN_COMPILER` to select a compil
 Builds `build/sun_apple.moon` and static/shared native libraries under `build/native`.
 Runs tests through both the JIT and a standalone executable. Tests cover runtime
 lookup, Core Foundation ownership, rectangle ABI, ImageIO, and region coordinates.
-They do not request screen access.
+They do not request screen, camera, or microphone access. A native movie test
+feeds synthetic pixels and audio through the actual live writer and decodes its
+output to check placement, camera updates over a still desktop, and the audio track.
+The encoder test requires macOS media-service access, so it cannot run inside a
+sandbox that blocks those services. `build/movie-tests --stress` runs a longer
+1080p synthetic capture for memory profiling.
 
 ## Modules
 
@@ -23,7 +28,7 @@ They do not request screen access.
 | `apple_image_io` | Raw image source decoding and destination encoding |
 | `apple_foundation` | Owned Sun copies of UUIDs and standard media paths |
 | `apple_appkit` | Region selection geometry |
-| `apple_screen_capture` | Owned picker/stream sessions, PNG capture and silent MP4 recording |
+| `apple_screen_capture` | Owned picker/stream sessions, PNG capture and live H.264/AAC MP4 recording |
 
 Raw C declarations require `unsafe`: callers must honor pointer validity, buffer
 sizes, ownership, and thread requirements. `Create`, `Copy`, and `Retain` results
@@ -38,12 +43,26 @@ Target and layout assertions currently restrict the bundle to arm64 macOS.
 Escape-cancellable region overlay. Construct, use, and destroy it on the main
 thread. Use one session at a time. `select(0)` selects a display, `select(1)` a
 window, and `select(2)` an area within a display. Poll until `Event.Selected`,
-then call `start(recording, cursor, path)`. Paths must be private output files.
+then call `start(recording, cursor, path)` for screenshots or legacy silent capture.
+Use `start_live(cursor, path, camera, microphone, corner, size)` for live MP4
+recording. Corner values select lower right, lower left, upper right, and upper
+left; size values select small, medium, and large. Paths must be private output files.
 
 For recordings, wait for `Event.Recording`, call `stop()`, and wait for
 `Event.Finished` before reading the MP4. Screenshots finish with `Event.Screenshot`.
 `Event.Cancelled` reports cancellation; errors are returned as `SystemResult`.
-Closing a session suppresses callbacks and requests native stream shutdown.
+Live recording uses one latest desktop frame and one latest camera frame, a
+bounded pixel-buffer pool, and a serial encoder queue. A host-clock timer keeps
+camera motion visible over an unchanged desktop. H.264 video and optional AAC
+microphone audio are written as MP4 fragments during capture. Device access is
+requested only for enabled inputs. Clients must embed camera and microphone usage
+descriptions. Camera frames may be dropped under encoding backpressure; audio
+write failures are reported.
+
+Closing a session suppresses callbacks and stops camera and streaming resources.
+Closing an unfinished AVAssetWriter can remove its output pathname. Clients that
+want to retain partial fragments after an error must create a recovery hard link
+before closing the session.
 Stop and await finalization before deleting a recording's files.
 
 The native Objective-C layer in `src/native` adapts blocks, delegates, event-loop
@@ -52,7 +71,7 @@ Native callbacks queue events; they never invoke Sun code on native callback
 threads. This is not a complete binding generator or a pure-Sun Objective-C runtime.
 
 Application policy belongs in clients: countdowns, filenames, cancellation state,
-FFmpeg conversion, and atomic publication are implemented by the Sun video editor.
+failure recovery and atomic publication are implemented by the Sun video editor.
 
 ## Linking and distribution
 

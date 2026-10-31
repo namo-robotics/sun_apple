@@ -4,6 +4,7 @@
 #import <ImageIO/ImageIO.h>
 #import <AVFoundation/AVFoundation.h>
 #import "capture.h"
+#import "movie.h"
 
 CGRect sa_region_rectangle(CGPoint first, CGPoint last, CGSize bounds) {
     CGRect rect = CGRectIntersection((CGRect){CGPointZero,bounds}, CGRectMake(MIN(first.x,last.x), MIN(first.y,last.y), fabs(first.x-last.x), fabs(first.y-last.y)));
@@ -70,10 +71,24 @@ CGRect sa_region_rectangle(CGPoint first, CGPoint last, CGSize bounds) {
 @end
 
 /** Keeps Apple objects alive and serializes callbacks without calling into Sun from native threads. */
-@interface SunAppleCaptureSession : NSObject <SCContentSharingPickerObserver, SCStreamDelegate, SCRecordingOutputDelegate>
+@interface SunAppleCaptureSession : NSObject <SCContentSharingPickerObserver, SCStreamDelegate, SCRecordingOutputDelegate, SCStreamOutput, AVCaptureVideoDataOutputSampleBufferDelegate>
 @property SCContentFilter *filter;
 @property SCStream *stream;
 @property SCRecordingOutput *recording;
+@property SunAppleMovie *movie;
+@property AVCaptureSession *cameraSession;
+@property dispatch_queue_t cameraQueue;
+@property BOOL live;
+@property BOOL camera;
+@property BOOL microphone;
+@property int corner;
+@property int cameraSize;
+/** Starts camera acquisition and the authorized screen stream after device permission is granted. */
+- (void)startLive;
+/** Requests only the device permissions explicitly enabled by the caller. */
+- (void)authorizeLive;
+/** Stops live inputs and drains their writer in callback order. */
+- (void)stopLive;
 @property NSWindow *overlay;
 @property NSMutableArray<NSNumber *> *events;
 @property NSString *error;
@@ -149,6 +164,73 @@ CGRect sa_region_rectangle(CGPoint first, CGPoint last, CGSize bounds) {
     [window makeFirstResponder:view];
     [self event:7];
 }
+/** Delivers completed screen frames and microphone buffers to the serial movie writer. */
+- (void)stream:(SCStream *)stream didOutputSampleBuffer:(CMSampleBufferRef)sample ofType:(SCStreamOutputType)type {
+    if (type == SCStreamOutputTypeMicrophone) { [self.movie microphoneSamples:sample]; return; }
+    if (type != SCStreamOutputTypeScreen || !CMSampleBufferIsValid(sample)) return;
+    NSArray *attachments = (__bridge NSArray *)CMSampleBufferGetSampleAttachmentsArray(sample, NO);
+    NSNumber *status = [attachments.firstObject objectForKey:SCStreamFrameInfoStatus];
+    if (!status || status.integerValue != SCFrameStatusComplete) return;
+    [self.movie updateScreen:CMSampleBufferGetImageBuffer(sample)];
+}
+/** Retains only the newest camera image on the same queue as screen composition. */
+- (void)captureOutput:(AVCaptureOutput *)output didOutputSampleBuffer:(CMSampleBufferRef)sample fromConnection:(AVCaptureConnection *)connection {
+    [self.movie cameraFrame:CMSampleBufferGetImageBuffer(sample)];
+}
+- (void)authorizeLive {
+    if (self.closed || self.stopping) return;
+    for (AVMediaType media in @[AVMediaTypeVideo, AVMediaTypeAudio]) {
+        if (([media isEqual:AVMediaTypeVideo] && !self.camera) || ([media isEqual:AVMediaTypeAudio] && !self.microphone)) continue;
+        AVAuthorizationStatus status = [AVCaptureDevice authorizationStatusForMediaType:media];
+        if (status == AVAuthorizationStatusNotDetermined) {
+            [AVCaptureDevice requestAccessForMediaType:media completionHandler:^(BOOL granted) {
+                dispatch_async(dispatch_get_main_queue(), ^{ [self authorizeLive]; });
+            }];
+            return;
+        }
+        if (status != AVAuthorizationStatusAuthorized) {
+            [self fail:[NSError errorWithDomain:@"sun_apple" code:1 userInfo:@{NSLocalizedDescriptionKey:
+                [media isEqual:AVMediaTypeVideo] ? @"Camera access denied. Allow Camera access in System Settings > Privacy & Security." : @"Microphone access denied. Allow Microphone access in System Settings > Privacy & Security."}]];
+            return;
+        }
+    }
+    [self startLive];
+}
+- (void)startLive {
+    if (self.closed || self.stopping) return;
+    if (self.camera) {
+        NSError *error = nil;
+        AVCaptureDevice *device = [AVCaptureDevice defaultDeviceWithMediaType:AVMediaTypeVideo];
+        AVCaptureDeviceInput *input = device ? [AVCaptureDeviceInput deviceInputWithDevice:device error:&error] : nil;
+        AVCaptureSession *camera = [AVCaptureSession new];
+        AVCaptureVideoDataOutput *frames = [AVCaptureVideoDataOutput new];
+        frames.alwaysDiscardsLateVideoFrames = YES;
+        frames.videoSettings = @{(id)kCVPixelBufferPixelFormatTypeKey:@(kCVPixelFormatType_32BGRA)};
+        [frames setSampleBufferDelegate:self queue:self.movie.queue];
+        if (!input || ![camera canAddInput:input] || ![camera canAddOutput:frames]) {
+            [self fail:error ?: [NSError errorWithDomain:@"sun_apple" code:1 userInfo:@{NSLocalizedDescriptionKey:@"The default camera is unavailable"}]];
+            return;
+        }
+        [camera addInput:input]; [camera addOutput:frames];
+        if ([camera canSetSessionPreset:AVCaptureSessionPreset640x480]) camera.sessionPreset = AVCaptureSessionPreset640x480;
+        self.cameraSession = camera;
+        self.cameraQueue = dispatch_queue_create("org.sun.capture.camera", DISPATCH_QUEUE_SERIAL);
+        dispatch_async(self.cameraQueue, ^{ [camera startRunning]; });
+    }
+    SCStream *stream = self.stream;
+    [stream startCaptureWithCompletionHandler:^(NSError *error) {
+        if (error) [self fail:error];
+        if (self.closed || self.stopping) [stream stopCaptureWithCompletionHandler:^(NSError *ignored) {}];
+    }];
+}
+- (void)stopLive {
+    CMTime stopped = CMClockGetTime(CMClockGetHostTimeClock());
+    if (self.cameraSession) dispatch_async(self.cameraQueue, ^{ [self.cameraSession stopRunning]; });
+    [self.stream stopCaptureWithCompletionHandler:^(NSError *error) {
+        dispatch_async(self.movie.queue, ^{ [self.movie finishAtTime:stopped]; });
+    }];
+}
+
 /** Signals readiness only after the recording output has started. */
 - (void)recordingOutputDidStartRecording:(SCRecordingOutput *)output { [self event:3]; }
 /** Signals finalization only after the native file is complete. */
@@ -156,7 +238,14 @@ CGRect sa_region_rectangle(CGPoint first, CGPoint last, CGSize bounds) {
 /** Propagates recording failures. */
 - (void)recordingOutput:(SCRecordingOutput *)output didFailWithError:(NSError *)error { [self fail:error]; }
 /** Propagates permission revocation and source loss. */
-- (void)stream:(SCStream *)stream didStopWithError:(NSError *)error { [self fail:error]; }
+- (void)stream:(SCStream *)stream didStopWithError:(NSError *)error {
+    if (self.live && !self.stopping) {
+        self.stopping = YES;
+        if (self.cameraSession) dispatch_async(self.cameraQueue, ^{ [self.cameraSession stopRunning]; });
+        CMTime stopped = CMClockGetTime(CMClockGetHostTimeClock());
+        dispatch_async(self.movie.queue, ^{ [self.movie finishAtTime:stopped]; });
+    } else if (!self.stopping) [self fail:error];
+}
 @end
 
 /** Tracks the one session allowed to own Apple's shared picker. */
@@ -180,6 +269,17 @@ void sa_capture_free(void *pointer) {
     if (!pointer) return;
     SunAppleCaptureSession *owner = (__bridge_transfer SunAppleCaptureSession *)pointer;
     owner.closed = YES;
+    if (owner.cameraSession) dispatch_sync(owner.cameraQueue, ^{ [owner.cameraSession stopRunning]; });
+    if (owner.cameraSession) {
+        for (AVCaptureOutput *output in owner.cameraSession.outputs)
+            if ([output isKindOfClass:AVCaptureVideoDataOutput.class]) [(AVCaptureVideoDataOutput *)output setSampleBufferDelegate:nil queue:NULL];
+        owner.cameraSession = nil;
+    }
+    if (owner.movie) dispatch_sync(owner.movie.queue, ^{ [owner.movie cancel]; });
+    if (owner.live && owner.stream) {
+        [owner.stream removeStreamOutput:owner type:SCStreamOutputTypeScreen error:NULL];
+        if (owner.microphone) [owner.stream removeStreamOutput:owner type:SCStreamOutputTypeMicrophone error:NULL];
+    }
     if (active_session == owner) active_session = nil;
     [SCContentSharingPicker.sharedPicker removeObserver:owner];
     SCContentSharingPicker.sharedPicker.active = NO;
@@ -226,6 +326,9 @@ void sa_capture_start(void *pointer, int recording, int cursor, const char *path
     configuration.height = MAX(2, (NSInteger)(size.height * scale) / 2 * 2);
     configuration.showsCursor = cursor != 0;
     configuration.capturesAudio = NO;
+    configuration.captureMicrophone = recording && owner.microphone;
+    configuration.queueDepth = 3;
+    configuration.pixelFormat = kCVPixelFormatType_32BGRA;
     configuration.minimumFrameInterval = CMTimeMake(1,30);
     if (owner.source == 2) configuration.sourceRect = owner.region;
     NSURL *url = [NSURL fileURLWithPath:[NSString stringWithUTF8String:path]];
@@ -243,6 +346,20 @@ void sa_capture_start(void *pointer, int recording, int cursor, const char *path
                 else [owner fail:[NSError errorWithDomain:@"sun_apple" code:1 userInfo:@{NSLocalizedDescriptionKey:@"Cannot save screenshot"}]];
             });
         }];
+    } else if (owner.live) {
+        NSError *error = nil;
+        owner.movie = [[SunAppleMovie alloc] initWithURL:url width:configuration.width height:configuration.height camera:owner.camera microphone:owner.microphone corner:owner.corner size:owner.cameraSize error:&error];
+        if (!owner.movie) { [owner fail:error ?: [NSError errorWithDomain:@"sun_apple" code:1 userInfo:@{NSLocalizedDescriptionKey:@"Cannot configure the MP4 encoder"}]]; return; }
+        __weak SunAppleCaptureSession *weak = owner;
+        owner.movie.started = ^{ [weak event:3]; };
+        owner.movie.finished = ^{ [weak event:4]; };
+        owner.movie.failed = ^(NSError *failure) { [weak fail:failure]; };
+        owner.stream = [[SCStream alloc] initWithFilter:owner.filter configuration:configuration delegate:owner];
+        if (![owner.stream addStreamOutput:owner type:SCStreamOutputTypeScreen sampleHandlerQueue:owner.movie.queue error:&error] ||
+            (owner.microphone && ![owner.stream addStreamOutput:owner type:SCStreamOutputTypeMicrophone sampleHandlerQueue:owner.movie.queue error:&error])) {
+            [owner fail:error]; return;
+        }
+        [owner authorizeLive];
     } else {
         SCRecordingOutputConfiguration *output = [SCRecordingOutputConfiguration new];
         output.outputURL = url;
@@ -255,10 +372,18 @@ void sa_capture_start(void *pointer, int recording, int cursor, const char *path
         [owner.stream startCaptureWithCompletionHandler:^(NSError *error) { if (error) [owner fail:error]; }];
     }
 }
+void sa_capture_start_live(void *pointer, int cursor, const char *path, int camera, int microphone, int corner, int size) {
+    SunAppleCaptureSession *owner = (__bridge SunAppleCaptureSession *)pointer;
+    if (!owner || corner < 0 || corner > 3 || size < 0 || size > 2) return;
+    owner.live = YES; owner.camera = camera != 0; owner.microphone = microphone != 0;
+    owner.corner = corner; owner.cameraSize = size;
+    sa_capture_start(pointer, 1, cursor, path);
+}
 void sa_capture_stop(void *pointer) {
     SunAppleCaptureSession *owner = (__bridge SunAppleCaptureSession *)pointer;
     if (!owner.stream || owner.stopping) return;
     owner.stopping = YES;
+    if (owner.live) { [owner stopLive]; return; }
     [owner.stream stopCaptureWithCompletionHandler:^(NSError *error) { if (error) [owner fail:error]; }];
 }
 char *sa_uuid(void) { @autoreleasepool { return strdup(NSUUID.UUID.UUIDString.UTF8String); } }
