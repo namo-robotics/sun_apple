@@ -84,6 +84,7 @@ static BOOL verify(NSURL *url) {
 /** Runs deterministic geometry checks and a real-time bounded encoder test. */
 int main(int argc, const char *argv[]) {
     BOOL stress = argc == 2 && strcmp(argv[1], "--stress") == 0;
+    BOOL interrupt = argc == 2 && strcmp(argv[1], "--interrupt") == 0;
     int width = stress ? 1920 : 320, height = stress ? 1080 : 240;
     @autoreleasepool {
         for (int corner = 0; corner < 4; ++corner) for (int size = 0; size < 3; ++size) {
@@ -110,6 +111,7 @@ int main(int argc, const char *argv[]) {
         if (dispatch_semaphore_wait(started, dispatch_time(DISPATCH_TIME_NOW, 10*NSEC_PER_SEC))) return 1;
         CMTime audioStart = CMClockGetTime(CMClockGetHostTimeClock());
         for (int packet = 0; packet < (stress ? 3000 : 110); ++packet) {
+            @autoreleasepool {
             if (packet == 55) {
                 CVPixelBufferRef changed = frame(160, 120, 255, 255);
                 dispatch_sync(movie.queue, ^{ [movie cameraFrame:changed]; });
@@ -120,6 +122,16 @@ int main(int argc, const char *argv[]) {
             dispatch_sync(movie.queue, ^{ [movie microphoneSamples:sample]; });
             CFRelease(sample);
             usleep(20000);
+            }
+        }
+        if (interrupt) {
+            NSString *recovery = @"build/live-movie-recovery.mp4";
+            [NSFileManager.defaultManager removeItemAtPath:recovery error:NULL];
+            if (link(path.fileSystemRepresentation, recovery.fileSystemRepresentation)) return 1;
+            dispatch_sync(movie.queue, ^{ [movie cancel]; });
+            if (!verify([NSURL fileURLWithPath:recovery])) { fprintf(stderr, "Partial MP4 could not be recovered\n"); return 1; }
+            puts("PASS interrupted writer retains playable MP4 fragments through a recovery link");
+            return 0;
         }
         CMTime stopped = CMClockGetTime(CMClockGetHostTimeClock());
         dispatch_sync(movie.queue, ^{ [movie finishAtTime:stopped]; });

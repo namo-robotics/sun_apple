@@ -40,3 +40,4 @@ xcrun clang++ build/bindings-smoke.o build/native/libsun_apple_native.a -lobjc -
 xcrun clang -fobjc-arc -Wall -Wextra -Werror -Wno-unused-parameter -mmacosx-version-min=15.2 tests/movie.m build/native/movie.o \
   -framework Foundation -framework AVFoundation -framework CoreMedia -framework CoreVideo -framework CoreImage -framework CoreGraphics -o build/movie-tests
 ./build/movie-tests
+./build/movie-tests --interrupt

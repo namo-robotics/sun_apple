@@ -29,7 +29,8 @@ CGRect sa_camera_rectangle(CGSize screen, CGSize camera, int corner, int size) {
 }
 - (instancetype)initWithURL:(NSURL *)url width:(NSInteger)width height:(NSInteger)height camera:(BOOL)camera microphone:(BOOL)microphone corner:(int)corner size:(int)size error:(NSError **)error {
     if (!(self = [super init])) return nil;
-    _queue = dispatch_queue_create("org.sun.capture.movie", DISPATCH_QUEUE_SERIAL);
+    _queue = dispatch_queue_create("org.sun.capture.movie", dispatch_queue_attr_make_with_autorelease_frequency(
+        DISPATCH_QUEUE_SERIAL, DISPATCH_AUTORELEASE_FREQUENCY_WORK_ITEM));
     _dimensions = CGSizeMake(width, height); _camera = camera; _corner = corner; _size = size;
     _writer = [[AVAssetWriter alloc] initWithURL:url fileType:AVFileTypeMPEG4 error:error];
     if (!_writer) return nil;
@@ -126,11 +127,13 @@ CGRect sa_camera_rectangle(CGSize screen, CGSize camera, int corner, int size) {
     }
 }
 - (void)microphoneSamples:(CMSampleBufferRef)samples {
+    @autoreleasepool {
     if (_ended || !_began || !_audio || !CMSampleBufferDataIsReady(samples)) return;
     CMTime time = CMSampleBufferGetPresentationTimeStamp(samples);
     if (!CMTIME_IS_NUMERIC(time) || CMTimeCompare(time, _startTime) < 0) return;
     if (!_audio.readyForMoreMediaData || ![_audio appendSampleBuffer:samples])
         [self fail:@"The microphone encoder could not keep up; the partial recording was retained"];
+    }
 }
 - (void)finishAtTime:(CMTime)time {
     if (_ended) return;
