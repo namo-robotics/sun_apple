@@ -1,0 +1,135 @@
+using std;
+
+/** Owns ScreenCaptureKit sessions on the main thread and polls native callbacks. */
+public module apple_screen_capture {
+
+  /** Creates a native main-thread session without showing the picker. */
+  extern "C" function sa_capture_new() raw_ptr<u8>;
+
+  /** Releases a session and stops its native resources. */
+  extern "C" function sa_capture_free(session: raw_ptr<u8>) void;
+
+  /** Presents the system picker for a validated source kind. */
+  extern "C" function sa_capture_select(session: raw_ptr<u8>, source: i32) void;
+
+  /** Pumps native events and takes the next callback result. */
+  extern "C" function sa_capture_poll(session: raw_ptr<u8>) i32;
+
+  /** Borrows the last native diagnostic. */
+  extern "C" function sa_capture_error(session: raw_ptr<u8>) raw_ptr<u8>;
+
+  /** Captures a selected source at a validated path. */
+  extern "C" function sa_capture_start(
+    session: raw_ptr<u8>,
+    recording: i32,
+    cursor: i32,
+    path: raw_ptr<u8>
+  ) void;
+
+  /** Asynchronously stops the native stream. */
+  extern "C" function sa_capture_stop(session: raw_ptr<u8>) void;
+
+  /** Represents an event received from the system picker, overlay, or capture stream. */
+  public enum Event { Idle, Selected, Cancelled, Recording, Finished, Screenshot, Region }
+
+  /** Owns one picker and stream; construct, use, and destroy on the main thread. */
+  public class Session {
+    var pointer: raw_ptr<u8> = null;
+    var selecting: bool = false;
+    var selected: bool = false;
+    var started: bool = false;
+
+    /** Creates an idle owner; open explicitly before selecting. */
+    init() {}
+
+    /** Closes all native resources on scope exit. */
+    deinit() {
+      this.close();
+    }
+
+    /** Releases the native owner; no further events are delivered to Sun. */
+    public method close() void {
+      if (this.pointer != null) {
+        unsafe { sa_capture_free(this.pointer); };
+        this.pointer = null;
+      }
+    }
+
+    /** Opens one session and presents a screen, window, or area picker. */
+    public method select(source: i32) SystemResult<void> {
+      if (this.selecting or source < 0 or source > 2) {
+        return SystemResult.Error(Error(1, "Invalid or repeated capture selection"));
+      }
+      this.pointer = unsafe { sa_capture_new(); };
+      if (this.pointer == null) {
+        return SystemResult.Error(
+          Error(
+            1,
+            "Capture requires the main thread, macOS 15.2 or newer, and no other active session"
+          )
+        );
+      }
+      this.selecting = true;
+      unsafe { sa_capture_select(this.pointer, source); };
+      return SystemResult.Ok;
+    }
+
+    /** Dispatches bounded UI work and returns the next native event without blocking. */
+    public method poll() SystemResult<Event> {
+      if (this.pointer == null) {
+        return SystemResult.Error(Error(1, "Capture session is closed"));
+      }
+      var event = unsafe { sa_capture_poll(this.pointer); };
+      if (event == 6) {
+        return SystemResult.Error(
+          Error(1, from_c_str(make_heap_allocator(), unsafe { sa_capture_error(this.pointer); }))
+        );
+      }
+      if (event == 1) {
+        this.selected = true;
+        return SystemResult.Ok(Event.Selected);
+      }
+      if (event == 2) {
+        return SystemResult.Ok(Event.Cancelled);
+      }
+      if (event == 3) {
+        return SystemResult.Ok(Event.Recording);
+      }
+      if (event == 4) {
+        return SystemResult.Ok(Event.Finished);
+      }
+      if (event == 5) {
+        return SystemResult.Ok(Event.Screenshot);
+      }
+      if (event == 7) {
+        return SystemResult.Ok(Event.Region);
+      }
+      return SystemResult.Ok(Event.Idle);
+    }
+
+    /** Starts one PNG screenshot or silent MP4 recording after selection. */
+    public method start(recording: bool, cursor: bool, path: ref String) SystemResult<void> {
+      if (this.pointer == null or not this.selected or this.started or path.is_empty()) {
+        return SystemResult.Error(Error(1, "Capture is not ready to start"));
+      }
+      for (var i: i64 = 0; i < path.length(); i += 1) {
+        if (match path.at(i) {
+          AccessResult.Ok(value) => value == 0,
+          AccessResult.OutOfBounds(_) => true
+        }) {
+          return SystemResult.Error(Error(1, "Capture path contains a NUL byte"));
+        }
+      }
+      this.started = true;
+      unsafe { sa_capture_start(this.pointer, recording ? 1 : 0, cursor ? 1 : 0, path.c_str()); };
+      return SystemResult.Ok;
+    }
+
+    /** Requests finalization; wait for Finished before reading the recording. */
+    public method stop() void {
+      if (this.pointer != null) {
+        unsafe { sa_capture_stop(this.pointer); };
+      }
+    }
+  }
+}

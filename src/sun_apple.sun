@@ -1,0 +1,16 @@
+/** Bundles the initial Apple C API bindings for arm64 macOS. */
+manifest {
+  library_id: "namo-robotics/sun_apple"
+  libraries: [
+    "stdlib.moon"
+  ]
+  source_files: [
+    "objc.sun",
+    "foundation.sun",
+    "appkit.sun",
+    "screen_capture.sun",
+    "core_foundation.sun",
+    "core_graphics.sun",
+    "image_io.sun"
+  ]
+}

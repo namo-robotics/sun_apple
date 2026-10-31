@@ -1,0 +1,34 @@
+using std;
+
+/** Copies common Foundation values into explicitly owned Sun strings. */
+public module apple_foundation {
+
+  /** Allocates a native UTF-8 UUID. */
+  extern "C" function sa_uuid() raw_ptr<u8>;
+
+  /** Allocates the user's standard media directory path. */
+  extern "C" function sa_media_directory(video: i32) raw_ptr<u8>;
+
+  /** Releases a bridge-owned string. */
+  extern "C" function sa_string_free(text: raw_ptr<u8>) void;
+
+  /** Copies and releases a native allocation, reporting allocation failure. */
+  function take_text(pointer: raw_ptr<u8>) SystemResult<String> {
+    if (pointer == null) {
+      return SystemResult.Error(Error(1, "Cannot allocate Foundation string"));
+    }
+    var text = from_c_str(make_heap_allocator(), pointer);
+    unsafe { sa_string_free(pointer); };
+    return SystemResult.Ok(text);
+  }
+
+  /** Creates an owned unique identifier string. */
+  public function uuid() SystemResult<String> {
+    return take_text(unsafe { sa_uuid(); });
+  }
+
+  /** Copies the Pictures or Movies path without creating directories. */
+  public function media_directory(video: bool) SystemResult<String> {
+    return take_text(unsafe { sa_media_directory(video ? 1 : 0); });
+  }
+}

@@ -1,0 +1,23 @@
+/** Exposes Objective-C runtime discovery; handles and returned names are borrowed. */
+public module apple_objc {
+
+  _assert_c_target("arm64-apple-darwin");
+
+  /** Looks up a loaded class by its NUL-terminated name; returns null if absent. */
+  public extern "C" function objc_getClass(name: raw_ptr<u8>) raw_ptr<u8>;
+
+  /** Returns the borrowed name of a class. */
+  public extern "C" function class_getName(cls: raw_ptr<u8>) raw_ptr<u8>;
+
+  /** Returns the borrowed superclass, or null for a root class. */
+  public extern "C" function class_getSuperclass(cls: raw_ptr<u8>) raw_ptr<u8>;
+
+  /** Returns the runtime class of an object, or null for a null object. */
+  public extern "C" function object_getClass(object: raw_ptr<u8>) raw_ptr<u8>;
+
+  /** Interns a NUL-terminated selector name; selectors have process lifetime. */
+  public extern "C" function sel_registerName(name: raw_ptr<u8>) raw_ptr<u8>;
+
+  /** Returns a selector's borrowed NUL-terminated name. */
+  public extern "C" function sel_getName(selector: raw_ptr<u8>) raw_ptr<u8>;
+}

@@ -1,0 +1,48 @@
+/** Provides arm64 Core Graphics geometry and image ownership declarations. */
+public module apple_core_graphics {
+
+  _assert_c_target("arm64-apple-darwin");
+
+  /** Stores coordinates in the coordinate system chosen by the calling API. */
+  public class CGPoint {
+    public var x: f64;
+    public var y: f64;
+  }
+
+  /** Stores a width and height in the units chosen by the calling API. */
+  public class CGSize {
+    public var width: f64;
+    public var height: f64;
+  }
+
+  /** Stores the origin and dimensions of a Core Graphics rectangle. */
+  public class CGRect {
+    public var origin: CGPoint;
+    public var size: CGSize;
+  }
+
+  _assert_c_layout<CGPoint>(16, 8, 0, 8);
+  _assert_c_layout<CGSize>(16, 8, 0, 8);
+  _assert_c_layout<CGRect>(32, 8, 0, 16);
+
+  /** Returns the geometric intersection; disjoint rectangles produce CGRectNull. */
+  public extern "C" function CGRectIntersection(left: CGRect, right: CGRect) CGRect;
+
+  /** Reports whether a rectangle is the null rectangle. */
+  public extern "C" function CGRectIsNull(rectangle: CGRect) bool;
+
+  /** Reports whether a rectangle has no area. */
+  public extern "C" function CGRectIsEmpty(rectangle: CGRect) bool;
+
+  /** Retains a CGImage; the caller must release the returned ownership claim. */
+  public extern "C" function CGImageRetain(image: raw_ptr<u8>) raw_ptr<u8>;
+
+  /** Releases an owned CGImage; accepts null. */
+  public extern "C" function CGImageRelease(image: raw_ptr<u8>) void;
+
+  /** Returns a valid image's width in pixels. */
+  public extern "C" function CGImageGetWidth(image: raw_ptr<u8>) u64;
+
+  /** Returns a valid image's height in pixels. */
+  public extern "C" function CGImageGetHeight(image: raw_ptr<u8>) u64;
+}

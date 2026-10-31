@@ -1,0 +1,42 @@
+/** Exposes ImageIO encoding and decoding with explicit Core Foundation ownership. */
+public module apple_image_io {
+
+  _assert_c_target("arm64-apple-darwin");
+
+  /** Returns an owned array of supported destination type identifiers. */
+  public extern "C" function CGImageDestinationCopyTypeIdentifiers() raw_ptr<u8>;
+
+  /** Creates an owned encoder at a CFURL; type is a CFString and options may be null. */
+  public extern "C" function CGImageDestinationCreateWithURL(
+    url: raw_ptr<u8>,
+    type: raw_ptr<u8>,
+    count: u64,
+    options: raw_ptr<u8>
+  ) raw_ptr<u8>;
+
+  /** Adds an image to a valid encoder; optional properties may be null. */
+  public extern "C" function CGImageDestinationAddImage(
+    destination: raw_ptr<u8>,
+    image: raw_ptr<u8>,
+    properties: raw_ptr<u8>
+  ) void;
+
+  /** Finishes writing the destination; reports failure without releasing it. */
+  public extern "C" function CGImageDestinationFinalize(destination: raw_ptr<u8>) bool;
+
+  /** Opens an owned image source at a CFURL; options may be null. */
+  public extern "C" function CGImageSourceCreateWithURL(
+    url: raw_ptr<u8>,
+    options: raw_ptr<u8>
+  ) raw_ptr<u8>;
+
+  /** Returns the image count of a valid source. */
+  public extern "C" function CGImageSourceGetCount(source: raw_ptr<u8>) u64;
+
+  /** Decodes an owned CGImage at an in-range index; returns null on failure. */
+  public extern "C" function CGImageSourceCreateImageAtIndex(
+    source: raw_ptr<u8>,
+    index: u64,
+    options: raw_ptr<u8>
+  ) raw_ptr<u8>;
+}

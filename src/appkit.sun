@@ -1,0 +1,19 @@
+/** Provides reusable AppKit selection geometry in logical display points. */
+public module apple_appkit {
+
+  /** Converts an overlay drag using the same geometry as the native region view. */
+  extern "C" function sa_region_rectangle(
+    first: apple_core_graphics.CGPoint,
+    last: apple_core_graphics.CGPoint,
+    bounds: apple_core_graphics.CGSize
+  ) apple_core_graphics.CGRect;
+
+  /** Clips a bottom-left drag to display bounds and returns a top-left rectangle. */
+  public function selection_rectangle(
+    first: apple_core_graphics.CGPoint,
+    last: apple_core_graphics.CGPoint,
+    bounds: apple_core_graphics.CGSize
+  ) apple_core_graphics.CGRect {
+    return unsafe { sa_region_rectangle(first, last, bounds); };
+  }
+}

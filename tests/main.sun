@@ -1,0 +1,127 @@
+using std;
+
+/** Verifies native calls through the built bundle without opening UI or capturing a screen. */
+module apple_tests {
+
+  /** Propagates native smoke-test assertions. */
+  public enum AppleTestResult<T> { Ok(T), Assertion(std.test.AssertionError) }
+
+  /** Verifies selector interning and runtime class lookup. */
+  public function runtime_discovery() AppleTestResult<void> {
+    var selector = unsafe { apple_objc.sel_registerName("description"); };
+    var same = unsafe { apple_objc.sel_registerName("description"); };
+    try std.test.assert(selector != null and selector == same);
+    var name = from_c_str(make_heap_allocator(), unsafe { apple_objc.sel_getName(selector); });
+    try std.test.assert(name.equals(String("description")));
+    var cls = unsafe { apple_objc.objc_getClass("NSObject"); };
+    try std.test.assert(cls != null);
+    var cls_name = from_c_str(make_heap_allocator(), unsafe { apple_objc.class_getName(cls); });
+    try std.test.assert(cls_name.equals(String("NSObject")));
+    return AppleTestResult.Ok;
+  }
+
+  /** Checks string creation, UTF-16 length, retain, and release against Core Foundation. */
+  public function foundation_ownership() AppleTestResult<void> {
+    var text = unsafe {
+      apple_core_foundation.CFStringCreateWithCString(null, "Sun ☀", 0x08000100);
+    };
+    try std.test.assert(text != null);
+    var length = unsafe { apple_core_foundation.CFStringGetLength(text); };
+    var retained = unsafe { apple_core_foundation.CFRetain(text); };
+    var equal = unsafe { apple_core_foundation.CFEqual(text, retained); };
+    unsafe {
+      apple_core_foundation.CFRelease(retained);
+      apple_core_foundation.CFRelease(text);
+    };
+    try std.test.assert(length == 5 and equal != 0);
+    return AppleTestResult.Ok;
+  }
+
+  /** Exercises nested records passed and returned by value across the arm64 C ABI. */
+  public function rectangle_abi() AppleTestResult<void> {
+    var left: apple_core_graphics.CGRect = {
+      origin: { x: 0.0, y: 0.0 },
+      size: { width: 100.0, height: 80.0 }
+    };
+    var right: apple_core_graphics.CGRect = {
+      origin: { x: 20.0, y: 30.0 },
+      size: { width: 120.0, height: 70.0 }
+    };
+    var intersection = unsafe { apple_core_graphics.CGRectIntersection(left, right); };
+    try std.test.assert(intersection.origin.x == 20.0 and intersection.origin.y == 30.0);
+    try std.test.assert(intersection.size.width == 80.0 and intersection.size.height == 50.0);
+    var distant: apple_core_graphics.CGRect = {
+      origin: { x: 500.0, y: 500.0 },
+      size: { width: 1.0, height: 1.0 }
+    };
+    var empty = unsafe { apple_core_graphics.CGRectIntersection(intersection, distant); };
+    try std.test.assert(unsafe { apple_core_graphics.CGRectIsNull(empty); });
+    return AppleTestResult.Ok;
+  }
+
+  /** Reads ImageIO's supported encoders and releases the returned collection. */
+  public function image_encoders() AppleTestResult<void> {
+    var types = unsafe { apple_image_io.CGImageDestinationCopyTypeIdentifiers(); };
+    try std.test.assert(types != null);
+    var count = unsafe { apple_core_foundation.CFArrayGetCount(types); };
+    unsafe { apple_core_foundation.CFRelease(types); };
+    try std.test.assert(count > 0);
+    return AppleTestResult.Ok;
+  }
+}
+
+/** Checks the same region conversion used by the native drag overlay. */
+function check_region() apple_tests.AppleTestResult<void> {
+  var first: apple_core_graphics.CGPoint = { x: 80.0, y: 70.0 };
+  var last: apple_core_graphics.CGPoint = { x: 20.0, y: 10.0 };
+  var bounds: apple_core_graphics.CGSize = { width: 100.0, height: 100.0 };
+  var rect = apple_appkit.selection_rectangle(first, last, bounds);
+  try std.test.assert(
+    rect.origin.x == 20.0 and rect.origin.y == 30.0 and rect.size.width == 60.0 and
+      rect.size.height == 60.0
+  );
+  var clipped_first: apple_core_graphics.CGPoint = { x: -20.0, y: -10.0 };
+  var clipped_last: apple_core_graphics.CGPoint = { x: 40.0, y: 30.0 };
+  var clipped_bounds: apple_core_graphics.CGSize = { width: 100.0, height: 100.0 };
+  var clipped = apple_appkit.selection_rectangle(clipped_first, clipped_last, clipped_bounds);
+  try std.test.assert(
+    clipped.origin.x == 0.0 and clipped.origin.y == 70.0 and clipped.size.width == 40.0 and
+      clipped.size.height == 30.0
+  );
+  return apple_tests.AppleTestResult.Ok;
+}
+
+/** Runs native checks in order and propagates an assertion failure. */
+function run_checks() apple_tests.AppleTestResult<void> {
+  try apple_tests.runtime_discovery();
+  println("PASS Objective-C runtime discovery");
+  try apple_tests.foundation_ownership();
+  println("PASS Core Foundation ownership");
+  try apple_tests.rectangle_abi();
+  println("PASS Core Graphics rectangle ABI");
+  try apple_tests.image_encoders();
+  println("PASS ImageIO encoders");
+  try check_region();
+  println("PASS AppKit region coordinates");
+  return apple_tests.AppleTestResult.Ok;
+}
+
+/** Returns failure if any native binding smoke test fails. */
+function main() i32 {
+  match run_checks() {
+    apple_tests.AppleTestResult.Ok => {
+      return 0;
+    },
+    apple_tests.AppleTestResult.Assertion(_) => {
+      println("FAIL Apple API bindings");
+      return 1;
+    }
+  };
+}
+
+manifest {
+  libraries: [
+    "stdlib.moon",
+    "sun_apple.moon"
+  ]
+}

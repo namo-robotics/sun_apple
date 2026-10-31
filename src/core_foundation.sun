@@ -1,0 +1,46 @@
+/** Provides raw Core Foundation ownership, strings, URLs, and collections. */
+public module apple_core_foundation {
+
+  _assert_c_target("arm64-apple-darwin");
+
+  /** Retains a nonnull CF object; the caller must balance this with CFRelease. */
+  public extern "C" function CFRetain(value: raw_ptr<u8>) raw_ptr<u8>;
+
+  /** Releases one ownership claim on a nonnull CF object. */
+  public extern "C" function CFRelease(value: raw_ptr<u8>) void;
+
+  /** Compares two nonnull CF objects by value; returns a C Boolean. */
+  public extern "C" function CFEqual(left: raw_ptr<u8>, right: raw_ptr<u8>) u8;
+
+  /** Copies a NUL-terminated string; returns an owned CFString or null. */
+  public extern "C" function CFStringCreateWithCString(
+    allocator: raw_ptr<u8>,
+    text: raw_ptr<u8>,
+    encoding: u32
+  ) raw_ptr<u8>;
+
+  /** Returns the UTF-16 code-unit count of a valid CFString. */
+  public extern "C" function CFStringGetLength(text: raw_ptr<u8>) i64;
+
+  /** Copies a CFString into a caller-owned buffer, including NUL; returns success. */
+  public extern "C" function CFStringGetCString(
+    text: raw_ptr<u8>,
+    buffer: raw_ptr<u8>,
+    capacity: i64,
+    encoding: u32
+  ) u8;
+
+  /** Creates an owned file URL from path bytes; null allocator uses the default. */
+  public extern "C" function CFURLCreateFromFileSystemRepresentation(
+    allocator: raw_ptr<u8>,
+    path: raw_ptr<u8>,
+    length: i64,
+    is_directory: u8
+  ) raw_ptr<u8>;
+
+  /** Returns the number of elements in a valid CFArray. */
+  public extern "C" function CFArrayGetCount(values: raw_ptr<u8>) i64;
+
+  /** Borrows an element at an in-range index from a valid CFArray. */
+  public extern "C" function CFArrayGetValueAtIndex(values: raw_ptr<u8>, index: i64) raw_ptr<u8>;
+}
