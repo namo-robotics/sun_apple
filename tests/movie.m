@@ -51,17 +51,23 @@ static AVAssetTrack *track(AVURLAsset *asset, AVMediaType type) {
     return result;
 }
 
-/** Decodes real output to verify inset placement, camera motion, and a microphone track. */
-static BOOL verify(NSURL *url) {
+/** Checks decoded pixels and an audio track; finalized movies must also retain the later camera update. */
+static BOOL verify(NSURL *url, BOOL finalized) {
     AVURLAsset *asset = [AVURLAsset URLAssetWithURL:url options:nil];
     AVAssetTrack *video = track(asset, AVMediaTypeVideo);
-    if (!video || !track(asset, AVMediaTypeAudio)) return NO;
+    if (!video || !track(asset, AVMediaTypeAudio)) {
+        NSLog(@"Movie verification failed: missing video or audio track in %@", url);
+        return NO;
+    }
     NSError *error = nil;
     AVAssetReader *reader = [[AVAssetReader alloc] initWithAsset:asset error:&error];
     AVAssetReaderTrackOutput *output = [AVAssetReaderTrackOutput assetReaderTrackOutputWithTrack:video
         outputSettings:@{(id)kCVPixelBufferPixelFormatTypeKey:@(kCVPixelFormatType_32BGRA)}];
     [reader addOutput:output];
-    if (![reader startReading]) return NO;
+    if (![reader startReading]) {
+        NSLog(@"Movie verification failed: cannot decode %@: %@", url, reader.error ?: error);
+        return NO;
+    }
     BOOL first = NO, changed = NO;
     CMSampleBufferRef sample;
     while ((sample = [output copyNextSampleBuffer])) {
@@ -72,13 +78,21 @@ static BOOL verify(NSURL *url) {
         size_t stride = CVPixelBufferGetBytesPerRow(image);
         size_t width = CVPixelBufferGetWidth(image), height = CVPixelBufferGetHeight(image);
         const unsigned char *camera = data + (height-20)*stride + (width-20)*4, *screen = data + (height/2)*stride + (width/2)*4;
-        if (screen[0] < 180 || screen[2] > 40) { CVPixelBufferUnlockBaseAddress(image, kCVPixelBufferLock_ReadOnly); CFRelease(sample); return NO; }
+        if (screen[0] < 180 || screen[2] > 40) {
+            NSLog(@"Movie verification failed: incorrect screen pixels at %.3f seconds", time);
+            CVPixelBufferUnlockBaseAddress(image, kCVPixelBufferLock_ReadOnly); CFRelease(sample); return NO;
+        }
         if (time > .2 && time < .8) first = camera[2] > 180 && camera[0] < 40;
         if (time > 1.7) changed = camera[2] > 180 && camera[0] > 180;
         CVPixelBufferUnlockBaseAddress(image, kCVPixelBufferLock_ReadOnly);
         CFRelease(sample);
     }
-    return reader.status == AVAssetReaderStatusCompleted && first && changed;
+    BOOL valid = reader.status == AVAssetReaderStatusCompleted && first && (!finalized || changed);
+    if (!valid) {
+        NSLog(@"Movie verification failed: reader=%ld, early camera=%d, later camera=%d, finalized=%d, error=%@",
+              (long)reader.status, first, changed, finalized, reader.error);
+    }
+    return valid;
 }
 
 /** Runs deterministic geometry checks and a real-time bounded encoder test. */
@@ -129,7 +143,8 @@ int main(int argc, const char *argv[]) {
             [NSFileManager.defaultManager removeItemAtPath:recovery error:NULL];
             if (link(path.fileSystemRepresentation, recovery.fileSystemRepresentation)) return 1;
             dispatch_sync(movie.queue, ^{ [movie cancel]; });
-            if (!verify([NSURL fileURLWithPath:recovery])) { fprintf(stderr, "Partial MP4 could not be recovered\n"); return 1; }
+            // Cancellation may discard the final fragment containing the later camera update.
+            if (!verify([NSURL fileURLWithPath:recovery], NO)) { fprintf(stderr, "Partial MP4 could not be recovered\n"); return 1; }
             puts("PASS interrupted writer retains playable MP4 fragments through a recovery link");
             return 0;
         }
@@ -137,7 +152,7 @@ int main(int argc, const char *argv[]) {
         dispatch_sync(movie.queue, ^{ [movie finishAtTime:stopped]; });
         if (dispatch_semaphore_wait(ended, dispatch_time(DISPATCH_TIME_NOW, 10*NSEC_PER_SEC)) || failed) return 1;
         dispatch_sync(movie.queue, ^{ [movie cancel]; });
-        if (!verify([NSURL fileURLWithPath:path])) { fprintf(stderr, "Movie pixels or audio track did not match\n"); return 1; }
+        if (!verify([NSURL fileURLWithPath:path], YES)) { fprintf(stderr, "Movie pixels or audio track did not match\n"); return 1; }
         puts("PASS live movie geometry, still-screen camera updates, and finalization");
     }
     return 0;
