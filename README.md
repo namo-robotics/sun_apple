@@ -84,3 +84,9 @@ object with Sun and links it with `xcrun clang++`.
 `./scripts/package-macos.sh` builds and tests an installable
 `build/sun_apple-arm64-apple-darwin.tar.gz`. It includes both native libraries,
 the bundle, compiler provenance, and the MIT license.
+
+CI builds and tests this archive with the published Homebrew Sun compiler before
+publishing it to the `dev` release from `main`. After an incompatible compiler or
+stdlib update, run the workflow again on `main` to rebuild the dependency before
+rerunning downstream editor CI. A pull request validates the archive without
+publishing it.
