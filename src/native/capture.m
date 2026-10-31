@@ -329,6 +329,7 @@ void sa_capture_start(void *pointer, int recording, int cursor, const char *path
     configuration.captureMicrophone = recording && owner.microphone;
     configuration.queueDepth = 3;
     configuration.pixelFormat = kCVPixelFormatType_32BGRA;
+    configuration.colorSpaceName = kCGColorSpaceSRGB;
     configuration.minimumFrameInterval = CMTimeMake(1,30);
     if (owner.source == 2) configuration.sourceRect = owner.region;
     NSURL *url = [NSURL fileURLWithPath:[NSString stringWithUTF8String:path]];

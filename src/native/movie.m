@@ -18,6 +18,7 @@ CGRect sa_camera_rectangle(CGSize screen, CGSize camera, int corner, int size) {
     AVAssetWriterInput *_audio;
     AVAssetWriterInputPixelBufferAdaptor *_pixels;
     CIContext *_context;
+    CGColorSpaceRef _colorSpace;
     CVPixelBufferRef _cameraFrame;
     CVPixelBufferRef _screenFrame;
     dispatch_source_t _timer;
@@ -54,11 +55,12 @@ CGRect sa_camera_rectangle(CGSize screen, CGSize camera, int corner, int size) {
         if (![_writer canAddInput:_audio]) return nil;
         [_writer addInput:_audio];
     }
+    _colorSpace = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
     _context = [CIContext contextWithOptions:@{kCIContextCacheIntermediates:@NO}];
     return self;
 }
 /** Releases the one explicitly retained Core Video frame. */
-- (void)dealloc { if (_cameraFrame) CVPixelBufferRelease(_cameraFrame); if (_screenFrame) CVPixelBufferRelease(_screenFrame); }
+- (void)dealloc { if (_colorSpace) CGColorSpaceRelease(_colorSpace); if (_cameraFrame) CVPixelBufferRelease(_cameraFrame); if (_screenFrame) CVPixelBufferRelease(_screenFrame); }
 /** Reports one error and prevents further writes. */
 - (void)fail:(NSString *)message {
     if (_reportedError) return;
@@ -114,7 +116,7 @@ CGRect sa_camera_rectangle(CGSize screen, CGSize camera, int corner, int size) {
             camera = [camera imageByApplyingTransform:CGAffineTransformMakeTranslation(inset.origin.x, inset.origin.y)];
             image = [camera imageByCompositingOverImage:image];
         }
-        [_context render:image toCVPixelBuffer:output];
+        [_context render:image toCVPixelBuffer:output bounds:(CGRect){CGPointZero, _dimensions} colorSpace:_colorSpace];
         BOOL appended = [_pixels appendPixelBuffer:output withPresentationTime:time];
         CVPixelBufferRelease(output);
         if (!appended) { [self fail:@"Cannot write a recording frame"]; return; }
