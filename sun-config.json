@@ -1,4 +1,113 @@
 {
   "root": true,
-  "sun_path": ["build"]
+  "package_id": "namo-robotics/sun_apple",
+  "steps": [
+    {
+      "name": "capture",
+      "enabled": {
+        "default": false,
+        "target": {
+          "arm64-apple-darwin": true
+        }
+      },
+      "command": [
+        "xcrun",
+        "clang",
+        "-fobjc-arc",
+        "-mmacosx-version-min=15.2",
+        "-c",
+        "src/native/capture.m",
+        "-o",
+        "${SUN_BUILD}/native/capture.o"
+      ],
+      "inputs": [
+        "src/native/capture.m"
+      ],
+      "outputs": [
+        "${SUN_BUILD}/native/capture.o"
+      ]
+    },
+    {
+      "name": "movie",
+      "enabled": {
+        "default": false,
+        "target": {
+          "arm64-apple-darwin": true
+        }
+      },
+      "command": [
+        "xcrun",
+        "clang",
+        "-fobjc-arc",
+        "-mmacosx-version-min=15.2",
+        "-c",
+        "src/native/movie.m",
+        "-o",
+        "${SUN_BUILD}/native/movie.o"
+      ],
+      "inputs": [
+        "src/native/movie.m"
+      ],
+      "outputs": [
+        "${SUN_BUILD}/native/movie.o"
+      ]
+    },
+    {
+      "name": "native",
+      "enabled": {
+        "default": false,
+        "target": {
+          "arm64-apple-darwin": true
+        }
+      },
+      "requires": [
+        "capture",
+        "movie"
+      ],
+      "command": [
+        "xcrun",
+        "ar",
+        "rcs",
+        "${SUN_BUILD}/native/libsun_apple_native.a",
+        "${SUN_BUILD}/native/capture.o",
+        "${SUN_BUILD}/native/movie.o"
+      ],
+      "inputs": [
+        "${SUN_BUILD}/native/capture.o",
+        "${SUN_BUILD}/native/movie.o"
+      ],
+      "outputs": [
+        "${SUN_BUILD}/native/libsun_apple_native.a"
+      ]
+    }
+  ],
+  "entrypoints": [
+    {
+      "name": "sun_apple",
+      "path": "src/sun_apple.sun",
+      "type": "library",
+      "export": true,
+      "enabled": {
+        "default": false,
+        "target": {
+          "arm64-apple-darwin": true
+        }
+      },
+      "steps": [
+        "native"
+      ],
+      "resources": [
+        {
+          "path": "${SUN_BUILD}/native/libsun_apple_native.a",
+          "destination": "lib/native/libsun_apple_native.a"
+        }
+      ]
+    }
+  ],
+  "exports": [
+    {
+      "path": "LICENSE",
+      "destination": "share/sun_apple/LICENSE"
+    }
+  ]
 }

@@ -1,6 +1,9 @@
 /** Bundles the initial Apple C API bindings for arm64 macOS. */
 manifest {
-  library_id: "namo-robotics/sun_apple"
+  archives: [
+    "$SUN_BUILD/native/libsun_apple_native.a"
+  ]
+  id: "namo-robotics/sun_apple"
   libraries: [
     "stdlib.moon"
   ]

@@ -7,20 +7,17 @@ if [[ "$(uname -s)" != Darwin || "$(uname -m)" != arm64 ]]; then
   exit 1
 fi
 compiler="${SUN_COMPILER:-sun}"
-mkdir -p build/native
-xcrun clang -fobjc-arc -Wall -Wextra -Werror -Wno-unused-parameter -mmacosx-version-min=15.2 -c src/native/capture.m -o build/native/capture.o
-xcrun clang -fobjc-arc -Wall -Wextra -Werror -Wno-unused-parameter -mmacosx-version-min=15.2 -c src/native/movie.m -o build/native/movie.o
-xcrun ar rcs build/native/libsun_apple_native.a build/native/capture.o build/native/movie.o
+build_root=$("$compiler" describe --config sun-config.json | python3 -c 'import json,sys; print(json.load(sys.stdin)["build_root"])')
+"$compiler" build --config sun-config.json --no-test
 # The system loader registers Objective-C classes for JIT clients.
-xcrun clang -dynamiclib build/native/capture.o build/native/movie.o -mmacosx-version-min=15.2 \
+xcrun clang -dynamiclib "$build_root/native/capture.o" "$build_root/native/movie.o" -mmacosx-version-min=15.2 \
   -install_name @rpath/libsun_apple_native.dylib \
   -framework AppKit -framework ScreenCaptureKit -framework AVFoundation \
   -framework CoreMedia -framework CoreGraphics -framework CoreVideo -framework CoreImage -framework ImageIO \
-  -o build/native/libsun_apple_native.dylib
+  -o "$build_root/native/libsun_apple_native.dylib"
 "$compiler" fmt --check src tests
-"$compiler" --emit-moon -o build/sun_apple.moon src/sun_apple.sun
-"$compiler" --lib-path build \
-  -lobjc -Lbuild/native -lsun_apple_native \
+"$compiler" --lib-path "$build_root" \
+  -lobjc "-L$build_root/native" -lsun_apple_native \
   -l/System/Library/Frameworks/AppKit.framework/AppKit \
   -l/System/Library/Frameworks/ScreenCaptureKit.framework/ScreenCaptureKit \
   -l/System/Library/Frameworks/AVFoundation.framework/AVFoundation \
@@ -32,12 +29,12 @@ xcrun clang -dynamiclib build/native/capture.o build/native/movie.o -mmacosx-ver
   -l/System/Library/Frameworks/CoreImage.framework/CoreImage \
   -l/System/Library/Frameworks/ImageIO.framework/ImageIO \
   tests/main.sun
-"$compiler" --lib-path build --emit-obj -o build/bindings-smoke.o tests/main.sun
-xcrun clang++ build/bindings-smoke.o build/native/libsun_apple_native.a -lobjc -framework AppKit -framework ScreenCaptureKit -framework AVFoundation -framework CoreMedia \
+"$compiler" --lib-path "$build_root" --emit-obj -o "$build_root/bindings-smoke.o" tests/main.sun
+xcrun clang++ "$build_root/bindings-smoke.o" "$build_root/native/libsun_apple_native.a" -lobjc -framework AppKit -framework ScreenCaptureKit -framework AVFoundation -framework CoreMedia \
   -framework Foundation -framework CoreFoundation \
-  -framework CoreGraphics -framework CoreVideo -framework CoreImage -framework ImageIO -o build/bindings-smoke
-./build/bindings-smoke
-xcrun clang -fobjc-arc -Wall -Wextra -Werror -Wno-unused-parameter -mmacosx-version-min=15.2 tests/movie.m build/native/movie.o \
-  -framework Foundation -framework AVFoundation -framework CoreMedia -framework CoreVideo -framework CoreImage -framework CoreGraphics -o build/movie-tests
-./build/movie-tests
-./build/movie-tests --interrupt
+  -framework CoreGraphics -framework CoreVideo -framework CoreImage -framework ImageIO -o "$build_root/bindings-smoke"
+"$build_root/bindings-smoke"
+xcrun clang -fobjc-arc -Wall -Wextra -Werror -Wno-unused-parameter -mmacosx-version-min=15.2 tests/movie.m "$build_root/native/movie.o" \
+  -framework Foundation -framework AVFoundation -framework CoreMedia -framework CoreVideo -framework CoreImage -framework CoreGraphics -o "$build_root/movie-tests"
+"$build_root/movie-tests"
+"$build_root/movie-tests" --interrupt
