@@ -26,6 +26,8 @@ jobs:
           path: |
             build/sun_apple-arm64-apple-darwin.tar.gz
             build/sun_apple-arm64-apple-darwin.tar.gz.sha256
+            build/sun_apple-arm64-apple-darwin.moon
+            build/sun_apple-arm64-apple-darwin.sun.tar.gz
   publish-macos:
     needs: macos
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
@@ -47,3 +49,5 @@ jobs:
           files: |
             build/release/sun_apple-arm64-apple-darwin.tar.gz
             build/release/sun_apple-arm64-apple-darwin.tar.gz.sha256
+            build/release/sun_apple-arm64-apple-darwin.moon
+            build/release/sun_apple-arm64-apple-darwin.sun.tar.gz

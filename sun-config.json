@@ -79,6 +79,54 @@
       "outputs": [
         "${SUN_BUILD}/native/libsun_apple_native.a"
       ]
+    },
+    {
+      "name": "native_shared",
+      "enabled": {
+        "default": false,
+        "target": {
+          "arm64-apple-darwin": true
+        }
+      },
+      "requires": [
+        "capture",
+        "movie"
+      ],
+      "command": [
+        "xcrun",
+        "clang",
+        "-dynamiclib",
+        "${SUN_BUILD}/native/capture.o",
+        "${SUN_BUILD}/native/movie.o",
+        "-mmacosx-version-min=15.2",
+        "-install_name",
+        "@rpath/libsun_apple_native.dylib",
+        "-framework",
+        "AppKit",
+        "-framework",
+        "ScreenCaptureKit",
+        "-framework",
+        "AVFoundation",
+        "-framework",
+        "CoreMedia",
+        "-framework",
+        "CoreGraphics",
+        "-framework",
+        "CoreVideo",
+        "-framework",
+        "CoreImage",
+        "-framework",
+        "ImageIO",
+        "-o",
+        "${SUN_BUILD}/native/libsun_apple_native.dylib"
+      ],
+      "inputs": [
+        "${SUN_BUILD}/native/capture.o",
+        "${SUN_BUILD}/native/movie.o"
+      ],
+      "outputs": [
+        "${SUN_BUILD}/native/libsun_apple_native.dylib"
+      ]
     }
   ],
   "entrypoints": [
@@ -94,7 +142,8 @@
         }
       },
       "steps": [
-        "native"
+        "native",
+        "native_shared"
       ],
       "resources": [
         {
@@ -108,6 +157,28 @@
     {
       "path": "LICENSE",
       "destination": "share/sun_apple/LICENSE"
+    }
+  ],
+  "packages": [
+    {
+      "name": "sun_apple",
+      "entrypoints": [
+        "sun_apple"
+      ],
+      "resources": [
+        {
+          "path": "LICENSE",
+          "destination": "share/sun_apple/LICENSE"
+        },
+        {
+          "path": "${SUN_BUILD}/native/libsun_apple_native.a",
+          "destination": "lib/native/libsun_apple_native.a"
+        },
+        {
+          "path": "${SUN_BUILD}/native/libsun_apple_native.dylib",
+          "destination": "lib/native/libsun_apple_native.dylib"
+        }
+      ]
     }
   ]
 }

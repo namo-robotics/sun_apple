@@ -8,6 +8,8 @@ Sun bindings for Apple platform APIs, organized by framework. Currently supports
 ```
 
 Requires Sun and Xcode Command Line Tools. Set `SUN_COMPILER` to select a compiler.
+`build.sh` builds the configured package, checks formatting, then calls
+`scripts/test-macos.sh`. The test script can also rerun checks on an existing build.
 Builds `build/sun_apple.moon` and static/shared native libraries under `build/native`.
 Runs tests through both the JIT and a standalone executable. Tests cover runtime
 lookup, Core Foundation ownership, rectangle ABI, ImageIO, and region coordinates.
@@ -78,8 +80,8 @@ failure recovery and atomic publication are implemented by the Sun video editor.
 Apple frameworks remain system dependencies. JIT clients load
 `libsun_apple_native.dylib`, allowing macOS to register its Objective-C classes.
 Compiled clients link `libsun_apple_native.a` and the frameworks listed in
-`build.sh`. Sun does not currently expose `-framework`, so the build emits an
-object with Sun and links it with `xcrun clang++`.
+`scripts/test-macos.sh`. The standalone smoke test emits an object with Sun
+and links it with `xcrun clang++`.
 
 `./scripts/package-macos.sh` builds and tests an installable
 `build/sun_apple-arm64-apple-darwin.tar.gz`. It includes both native libraries,
@@ -90,3 +92,15 @@ publishing it to the `dev` release from `main`. After an incompatible compiler o
 stdlib update, run the workflow again on `main` to rebuild the dependency before
 rerunning downstream editor CI. A pull request validates the archive without
 publishing it.
+
+### Sun package archive
+
+`sun build --config sun-config.json --no-test` generates
+`packages/sun_apple.tar.gz` under the directory reported by
+`sun describe --field build_root`. The package contains `lib/sun_apple.moon`,
+both native libraries in `lib/native`, the license, and a verified `package.json`.
+The native shared library is also built by the configuration.
+
+After tests pass, CI publishes `sun_apple-arm64-apple-darwin.moon` and
+`sun_apple-arm64-apple-darwin.sun.tar.gz` for direct Sun URL dependencies,
+alongside the existing macOS install archive.
