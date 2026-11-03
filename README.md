@@ -11,7 +11,8 @@ Requires Sun and Xcode Command Line Tools. Set `SUN_COMPILER` to select a compil
 `build.sh` builds the configured package, checks formatting, then calls
 `scripts/test-macos.sh`. The test script can also rerun checks on an existing build.
 Builds `build/sun_apple.moon` and static/shared native libraries under `build/native`.
-Runs tests through both the JIT and a standalone executable. Tests cover runtime
+Runs tests as compiled executables, linking the native archive embedded in the
+moon. Tests cover runtime
 lookup, Core Foundation ownership, rectangle ABI, ImageIO, and region coordinates.
 They do not request screen, camera, or microphone access. A native movie test
 feeds synthetic pixels and audio through the actual live writer and decodes its
@@ -79,9 +80,10 @@ failure recovery and atomic publication are implemented by the Sun video editor.
 
 Apple frameworks remain system dependencies. JIT clients load
 `libsun_apple_native.dylib`, allowing macOS to register its Objective-C classes.
-Compiled clients link `libsun_apple_native.a` and the frameworks listed in
-`scripts/test-macos.sh`. The standalone smoke test emits an object with Sun
-and links it with `xcrun clang++`.
+Compiled clients link the native archive carried in the moon and the frameworks
+declared by the `bindings_smoke` entrypoint in `sun-config.json`. The tests use
+Sun to compile and link
+a standalone executable; no tests execute through the JIT.
 
 `./scripts/package-macos.sh` builds and tests an installable
 `build/sun_apple-arm64-apple-darwin.tar.gz`. It includes both native libraries,

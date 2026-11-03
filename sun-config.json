@@ -151,6 +151,47 @@
           "destination": "lib/native/libsun_apple_native.a"
         }
       ]
+    },
+    {
+      "name": "bindings_smoke",
+      "path": "tests/main.sun",
+      "type": "binary",
+      "export": false,
+      "enabled": {
+        "default": false,
+        "target": {
+          "arm64-apple-darwin": true
+        }
+      },
+      "requires": [
+        "sun_apple"
+      ],
+      "compile_args": [
+        "--dynamic"
+      ],
+      "link_args": [
+        "-lobjc",
+        "-framework",
+        "AppKit",
+        "-framework",
+        "ScreenCaptureKit",
+        "-framework",
+        "AVFoundation",
+        "-framework",
+        "CoreMedia",
+        "-framework",
+        "Foundation",
+        "-framework",
+        "CoreFoundation",
+        "-framework",
+        "CoreGraphics",
+        "-framework",
+        "CoreVideo",
+        "-framework",
+        "CoreImage",
+        "-framework",
+        "ImageIO"
+      ]
     }
   ],
   "exports": [

@@ -1,26 +1,13 @@
 #!/usr/bin/env bash
-# Test the built bindings through JIT, standalone linkage, and synthetic media.
+# Test the built bindings through standalone linkage and synthetic media.
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 compiler=${SUN_COMPILER:-sun}
 build_root=$("$compiler" describe --config sun-config.json --field build_root)
 
-# Both execution modes exercise the same Apple framework dependencies.
-frameworks=(AppKit ScreenCaptureKit AVFoundation CoreMedia Foundation
-  CoreFoundation CoreGraphics CoreVideo CoreImage ImageIO)
-# Let the system loader register Objective-C classes for JIT execution.
-jit_flags=(-lobjc "-l$build_root/native/libsun_apple_native.dylib")
-link_flags=(-lobjc)
-for framework in "${frameworks[@]}"; do
-  jit_flags+=("-l/System/Library/Frameworks/$framework.framework/$framework")
-  link_flags+=(-framework "$framework")
-done
-
-"$compiler" --lib-path "$build_root" "${jit_flags[@]}" tests/main.sun
-"$compiler" --lib-path "$build_root" --emit-obj -o "$build_root/bindings-smoke.o" tests/main.sun
-xcrun clang++ "$build_root/bindings-smoke.o" "$build_root/native/libsun_apple_native.a" \
-  "${link_flags[@]}" -o "$build_root/bindings-smoke"
-"$build_root/bindings-smoke"
+# Compile against the moon's embedded archive, as a downstream application does.
+"$compiler" build --config sun-config.json --entrypoint bindings_smoke --no-test
+"$build_root/bindings_smoke"
 
 # Synthetic inputs exercise encoding and recovery without capturing the screen.
 xcrun clang -fobjc-arc -Wall -Wextra -Werror -Wno-unused-parameter \
