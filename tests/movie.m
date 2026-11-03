@@ -111,6 +111,10 @@ int main(int argc, const char *argv[]) {
         NSString *path = stress ? @"build/live-movie-stress.mp4" : @"build/live-movie-test.mp4";
         [NSFileManager.defaultManager removeItemAtPath:path error:nil];
         NSError *error = nil;
+        if (![NSFileManager.defaultManager createDirectoryAtPath:@"build" withIntermediateDirectories:YES attributes:nil error:&error]) {
+            NSLog(@"Cannot create movie test output directory: %@", error);
+            return 1;
+        }
         SunAppleMovie *movie = [[SunAppleMovie alloc] initWithURL:[NSURL fileURLWithPath:path] width:width height:height camera:YES microphone:YES corner:0 size:1 error:&error];
         if (!movie) { NSLog(@"%@", error); return 1; }
         dispatch_semaphore_t started = dispatch_semaphore_create(0), ended = dispatch_semaphore_create(0);
