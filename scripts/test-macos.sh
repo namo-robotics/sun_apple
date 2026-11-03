@@ -8,7 +8,8 @@ build_root=$("$compiler" describe --config sun-config.json --field build_root)
 # Both execution modes exercise the same Apple framework dependencies.
 frameworks=(AppKit ScreenCaptureKit AVFoundation CoreMedia Foundation
   CoreFoundation CoreGraphics CoreVideo CoreImage ImageIO)
-jit_flags=(-lobjc "-L$build_root/native" -lsun_apple_native)
+# Let the system loader register Objective-C classes for JIT execution.
+jit_flags=(-lobjc "-l$build_root/native/libsun_apple_native.dylib")
 link_flags=(-lobjc)
 for framework in "${frameworks[@]}"; do
   jit_flags+=("-l/System/Library/Frameworks/$framework.framework/$framework")
