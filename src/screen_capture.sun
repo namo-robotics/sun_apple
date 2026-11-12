@@ -93,7 +93,10 @@ public module apple_screen_capture {
       var event = unsafe { sa_capture_poll(this.pointer); };
       if (event == 6) {
         return SystemResult.Error(
-          Error(1, from_c_str(make_heap_allocator(), unsafe { sa_capture_error(this.pointer); }))
+          try Error(
+            1,
+            try from_c_str(make_heap_allocator(), unsafe { sa_capture_error(this.pointer); })
+          )
         );
       }
       if (event == 1) {
@@ -131,8 +134,9 @@ public module apple_screen_capture {
           return SystemResult.Error(Error(1, "Capture path contains a NUL byte"));
         }
       }
+      var native_path = try path.c_str();
       this.started = true;
-      unsafe { sa_capture_start(this.pointer, recording ? 1 : 0, cursor ? 1 : 0, path.c_str()); };
+      unsafe { sa_capture_start(this.pointer, recording ? 1 : 0, cursor ? 1 : 0, native_path); };
       return SystemResult.Ok;
     }
 
@@ -159,12 +163,13 @@ public module apple_screen_capture {
           return SystemResult.Error(Error(1, "Capture path contains a NUL byte"));
         }
       }
+      var native_path = try path.c_str();
       this.started = true;
       unsafe {
         sa_capture_start_live(
           this.pointer,
           cursor ? 1 : 0,
-          path.c_str(),
+          native_path,
           camera ? 1 : 0,
           microphone ? 1 : 0,
           corner,

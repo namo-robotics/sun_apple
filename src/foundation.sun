@@ -19,7 +19,7 @@ public module apple_foundation {
     }
     var text = from_c_str(make_heap_allocator(), pointer);
     unsafe { sa_string_free(pointer); };
-    return SystemResult.Ok(text);
+    return SystemResult.Ok(try text);
   }
 
   /** Creates an owned unique identifier string. */
