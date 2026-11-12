@@ -3,7 +3,6 @@ manifest {
   archives: [
     "$SUN_BUILD/native/libsun_apple_native.a"
   ]
-  id: "namo-robotics/sun_apple"
   libraries: [
     "stdlib.moon"
   ]
