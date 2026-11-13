@@ -4,28 +4,28 @@ using std;
 module apple_tests {
 
   /** Verifies selector interning and runtime class lookup. */
-  public function runtime_discovery() std.test.AssertionResult<void> {
+  public function runtime_discovery() void throws {
     var selector = unsafe { apple_objc.sel_registerName("description"); };
     var same = unsafe { apple_objc.sel_registerName("description"); };
-    try std.test.assert(selector != null and selector == same);
-    var name = try from_c_str(make_heap_allocator(), unsafe { apple_objc.sel_getName(selector); });
-    try std.test.assert(name.equals(try String("description")));
+    std.test.assert(selector != null and selector == same);
+    var name = from_c_str(make_heap_allocator(), unsafe { apple_objc.sel_getName(selector); });
+    std.test.assert(name.equals(String("description")));
     var cls = unsafe { apple_objc.objc_getClass("NSObject"); };
-    try std.test.assert(cls != null);
-    var cls_name = try from_c_str(
+    std.test.assert(cls != null);
+    var cls_name = from_c_str(
       make_heap_allocator(),
       unsafe { apple_objc.class_getName(cls); }
     );
-    try std.test.assert(cls_name.equals(try String("NSObject")));
-    return std.test.AssertionResult.Ok;
+    std.test.assert(cls_name.equals(String("NSObject")));
+    return;
   }
 
   /** Checks string creation, UTF-16 length, retain, and release against Core Foundation. */
-  public function foundation_ownership() std.test.AssertionResult<void> {
+  public function foundation_ownership() void throws {
     var text = unsafe {
       apple_core_foundation.CFStringCreateWithCString(null, "Sun ☀", 0x08000100);
     };
-    try std.test.assert(text != null);
+    std.test.assert(text != null);
     var length = unsafe { apple_core_foundation.CFStringGetLength(text); };
     var retained = unsafe { apple_core_foundation.CFRetain(text); };
     var equal = unsafe { apple_core_foundation.CFEqual(text, retained); };
@@ -33,12 +33,12 @@ module apple_tests {
       apple_core_foundation.CFRelease(retained);
       apple_core_foundation.CFRelease(text);
     };
-    try std.test.assert(length == 5 and equal != 0);
-    return std.test.AssertionResult.Ok;
+    std.test.assert(length == 5 and equal != 0);
+    return;
   }
 
   /** Exercises nested records passed and returned by value across the arm64 C ABI. */
-  public function rectangle_abi() std.test.AssertionResult<void> {
+  public function rectangle_abi() void throws {
     var left: apple_core_graphics.CGRect = {
       origin: { x: 0.0, y: 0.0 },
       size: { width: 100.0, height: 80.0 }
@@ -48,35 +48,35 @@ module apple_tests {
       size: { width: 120.0, height: 70.0 }
     };
     var intersection = unsafe { apple_core_graphics.CGRectIntersection(left, right); };
-    try std.test.assert(intersection.origin.x == 20.0 and intersection.origin.y == 30.0);
-    try std.test.assert(intersection.size.width == 80.0 and intersection.size.height == 50.0);
+    std.test.assert(intersection.origin.x == 20.0 and intersection.origin.y == 30.0);
+    std.test.assert(intersection.size.width == 80.0 and intersection.size.height == 50.0);
     var distant: apple_core_graphics.CGRect = {
       origin: { x: 500.0, y: 500.0 },
       size: { width: 1.0, height: 1.0 }
     };
     var empty = unsafe { apple_core_graphics.CGRectIntersection(intersection, distant); };
-    try std.test.assert(unsafe { apple_core_graphics.CGRectIsNull(empty); });
-    return std.test.AssertionResult.Ok;
+    std.test.assert(unsafe { apple_core_graphics.CGRectIsNull(empty); });
+    return;
   }
 
   /** Reads ImageIO's supported encoders and releases the returned collection. */
-  public function image_encoders() std.test.AssertionResult<void> {
+  public function image_encoders() void throws {
     var types = unsafe { apple_image_io.CGImageDestinationCopyTypeIdentifiers(); };
-    try std.test.assert(types != null);
+    std.test.assert(types != null);
     var count = unsafe { apple_core_foundation.CFArrayGetCount(types); };
     unsafe { apple_core_foundation.CFRelease(types); };
-    try std.test.assert(count > 0);
-    return std.test.AssertionResult.Ok;
+    std.test.assert(count > 0);
+    return;
   }
 }
 
 /** Checks the same region conversion used by the native drag overlay. */
-function check_region() std.test.AssertionResult<void> {
+function check_region() void throws {
   var first: apple_core_graphics.CGPoint = { x: 80.0, y: 70.0 };
   var last: apple_core_graphics.CGPoint = { x: 20.0, y: 10.0 };
   var bounds: apple_core_graphics.CGSize = { width: 100.0, height: 100.0 };
   var rect = apple_appkit.selection_rectangle(first, last, bounds);
-  try std.test.assert(
+  std.test.assert(
     rect.origin.x == 20.0 and rect.origin.y == 30.0 and rect.size.width == 60.0 and
       rect.size.height == 60.0
   );
@@ -84,39 +84,37 @@ function check_region() std.test.AssertionResult<void> {
   var clipped_last: apple_core_graphics.CGPoint = { x: 40.0, y: 30.0 };
   var clipped_bounds: apple_core_graphics.CGSize = { width: 100.0, height: 100.0 };
   var clipped = apple_appkit.selection_rectangle(clipped_first, clipped_last, clipped_bounds);
-  try std.test.assert(
+  std.test.assert(
     clipped.origin.x == 0.0 and clipped.origin.y == 70.0 and clipped.size.width == 40.0 and
       clipped.size.height == 30.0
   );
-  return std.test.AssertionResult.Ok;
+  return;
 }
 
 /** Runs native checks in order and propagates an assertion failure. */
-function run_checks() std.test.AssertionResult<void> {
-  try apple_tests.runtime_discovery();
+function run_checks() void throws {
+  apple_tests.runtime_discovery();
   std.io.println("PASS Objective-C runtime discovery");
-  try apple_tests.foundation_ownership();
+  apple_tests.foundation_ownership();
   std.io.println("PASS Core Foundation ownership");
-  try apple_tests.rectangle_abi();
+  apple_tests.rectangle_abi();
   std.io.println("PASS Core Graphics rectangle ABI");
-  try apple_tests.image_encoders();
+  apple_tests.image_encoders();
   std.io.println("PASS ImageIO encoders");
-  try check_region();
+  check_region();
   std.io.println("PASS AppKit region coordinates");
-  return std.test.AssertionResult.Ok;
+  return;
 }
 
 /** Returns failure if any native binding smoke test fails. */
 function main() i32 {
-  match run_checks() {
-    std.test.AssertionResult.Ok => {
-      return 0;
-    },
-    (error: const ref IError) => {
-      std.io.println("FAIL Apple API bindings");
-      return 1;
-    }
-  };
+  try {
+    run_checks();
+    return 0;
+  } catch {
+    std.io.println("FAIL Apple API bindings");
+    return 1;
+  }
 }
 
 manifest {

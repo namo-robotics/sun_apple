@@ -53,7 +53,7 @@ left; size values select small, medium, and large. Paths must be private output 
 
 For recordings, wait for `Event.Recording`, call `stop()`, and wait for
 `Event.Finished` before reading the MP4. Screenshots finish with `Event.Screenshot`.
-`Event.Cancelled` reports cancellation; errors are returned as `SystemResult`.
+`Event.Cancelled` reports cancellation; failures throw `std.Error` or the corresponding allocation exception.
 Live recording uses one latest desktop frame and one latest camera frame, a
 bounded pixel-buffer pool, and a serial encoder queue. A host-clock timer keeps
 camera motion visible over an unchanged desktop. H.264 video and optional AAC

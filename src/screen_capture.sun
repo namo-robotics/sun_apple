@@ -67,77 +67,70 @@ public module apple_screen_capture {
     }
 
     /** Opens one session and presents a screen, window, or area picker. */
-    public method select(source: i32) SystemResult<void> {
+    public method select(source: i32) void throws {
       if (this.selecting or source < 0 or source > 2) {
-        return SystemResult.Error(Error(1, "Invalid or repeated capture selection"));
+        throw Error(1, "Invalid or repeated capture selection");
       }
       this.pointer = unsafe { sa_capture_new(); };
       if (this.pointer == null) {
-        return SystemResult.Error(
-          Error(
-            1,
-            "Capture requires the main thread, macOS 15.2 or newer, and no other active session"
-          )
+        throw Error(
+          1,
+          "Capture requires the main thread, macOS 15.2 or newer, and no other active session"
         );
       }
       this.selecting = true;
       unsafe { sa_capture_select(this.pointer, source); };
-      return SystemResult.Ok;
+      return;
     }
 
     /** Dispatches bounded UI work and returns the next native event without blocking. */
-    public method poll() SystemResult<Event> {
+    public method poll() Event throws {
       if (this.pointer == null) {
-        return SystemResult.Error(Error(1, "Capture session is closed"));
+        throw Error(1, "Capture session is closed");
       }
       var event = unsafe { sa_capture_poll(this.pointer); };
       if (event == 6) {
-        return SystemResult.Error(
-          try Error(
-            1,
-            try from_c_str(make_heap_allocator(), unsafe { sa_capture_error(this.pointer); })
-          )
+        throw Error(
+          1,
+          from_c_str(make_heap_allocator(), unsafe { sa_capture_error(this.pointer); })
         );
       }
       if (event == 1) {
         this.selected = true;
-        return SystemResult.Ok(Event.Selected);
+        return Event.Selected;
       }
       if (event == 2) {
-        return SystemResult.Ok(Event.Cancelled);
+        return Event.Cancelled;
       }
       if (event == 3) {
-        return SystemResult.Ok(Event.Recording);
+        return Event.Recording;
       }
       if (event == 4) {
-        return SystemResult.Ok(Event.Finished);
+        return Event.Finished;
       }
       if (event == 5) {
-        return SystemResult.Ok(Event.Screenshot);
+        return Event.Screenshot;
       }
       if (event == 7) {
-        return SystemResult.Ok(Event.Region);
+        return Event.Region;
       }
-      return SystemResult.Ok(Event.Idle);
+      return Event.Idle;
     }
 
     /** Starts one PNG screenshot or silent MP4 recording after selection. */
-    public method start(recording: bool, cursor: bool, path: ref String) SystemResult<void> {
+    public method start(recording: bool, cursor: bool, path: ref String) void throws {
       if (this.pointer == null or not this.selected or this.started or path.is_empty()) {
-        return SystemResult.Error(Error(1, "Capture is not ready to start"));
+        throw Error(1, "Capture is not ready to start");
       }
       for (var i: i64 = 0; i < path.length(); i += 1) {
-        if (match path.at(i) {
-          AccessResult.Ok(value) => value == 0,
-          AccessResult.OutOfBounds(_) => true
-        }) {
-          return SystemResult.Error(Error(1, "Capture path contains a NUL byte"));
+        if (path.at(i) == 0) {
+          throw Error(1, "Capture path contains a NUL byte");
         }
       }
-      var native_path = try path.c_str();
+      var native_path = path.c_str();
       this.started = true;
       unsafe { sa_capture_start(this.pointer, recording ? 1 : 0, cursor ? 1 : 0, native_path); };
-      return SystemResult.Ok;
+      return;
     }
 
     /** Records the screen with optional camera and microphone using bounded native frame buffers. */
@@ -148,22 +141,17 @@ public module apple_screen_capture {
       microphone: bool,
       corner: i32,
       size: i32
-    ) SystemResult<void> {
+    ) void throws {
       if (this.pointer == null or not this.selected or this.started or path.is_empty() or
         corner < 0 or corner > 3 or size < 0 or size > 2) {
-        return SystemResult.Error(
-          Error(1, "Capture is not ready or the camera layout is invalid")
-        );
+        throw Error(1, "Capture is not ready or the camera layout is invalid");
       }
       for (var i: i64 = 0; i < path.length(); i += 1) {
-        if (match path.at(i) {
-          AccessResult.Ok(value) => value == 0,
-          AccessResult.OutOfBounds(_) => true
-        }) {
-          return SystemResult.Error(Error(1, "Capture path contains a NUL byte"));
+        if (path.at(i) == 0) {
+          throw Error(1, "Capture path contains a NUL byte");
         }
       }
-      var native_path = try path.c_str();
+      var native_path = path.c_str();
       this.started = true;
       unsafe {
         sa_capture_start_live(
@@ -176,7 +164,7 @@ public module apple_screen_capture {
           size
         );
       };
-      return SystemResult.Ok;
+      return;
     }
 
     /** Requests finalization; wait for Finished before reading the recording. */
