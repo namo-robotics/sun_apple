@@ -120,7 +120,7 @@ function main() i32 {
 
 manifest {
   libraries: [
-    "stdlib.moon",
-    "sun_apple.moon"
+    "sun/stdlib",
+    "namo-robotics/sun_apple/sun_apple"
   ]
 }

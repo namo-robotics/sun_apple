@@ -4,7 +4,7 @@ manifest {
     "$SUN_BUILD/native/libsun_apple_native.a"
   ]
   libraries: [
-    "stdlib.moon"
+    "sun/stdlib"
   ]
   source_files: [
     "objc.sun",
