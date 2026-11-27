@@ -1,6 +1,99 @@
 {
-  "root": true,
   "package_id": "namo-robotics/sun_apple",
+  "root": true,
+  "entrypoints": [
+    {
+      "name": "sun_apple",
+      "enabled": {
+        "default": false,
+        "target": {
+          "arm64-apple-darwin": true
+        }
+      },
+      "path": "src/sun_apple.sun",
+      "type": "library",
+      "export": true,
+      "steps": [
+        "native",
+        "native_shared"
+      ],
+      "resources": [
+        {
+          "path": "${SUN_BUILD}/native/libsun_apple_native.a",
+          "destination": "native/libsun_apple_native.a"
+        }
+      ]
+    },
+    {
+      "name": "bindings_smoke",
+      "enabled": {
+        "default": false,
+        "target": {
+          "arm64-apple-darwin": true
+        }
+      },
+      "path": "tests/main.sun",
+      "type": "binary",
+      "export": false,
+      "compile_args": [
+        "--dynamic"
+      ],
+      "requires": [
+        "sun_apple"
+      ],
+      "link_args": [
+        "-lobjc",
+        "-framework",
+        "AppKit",
+        "-framework",
+        "ScreenCaptureKit",
+        "-framework",
+        "AVFoundation",
+        "-framework",
+        "CoreMedia",
+        "-framework",
+        "Foundation",
+        "-framework",
+        "CoreFoundation",
+        "-framework",
+        "CoreGraphics",
+        "-framework",
+        "CoreVideo",
+        "-framework",
+        "CoreImage",
+        "-framework",
+        "ImageIO"
+      ]
+    }
+  ],
+  "packages": [
+    {
+      "name": "sun_apple",
+      "entrypoints": [
+        "sun_apple"
+      ],
+      "resources": [
+        {
+          "path": "LICENSE",
+          "destination": "share/sun_apple/LICENSE"
+        },
+        {
+          "path": "${SUN_BUILD}/native/libsun_apple_native.a",
+          "destination": "lib/native/libsun_apple_native.a"
+        },
+        {
+          "path": "${SUN_BUILD}/native/libsun_apple_native.dylib",
+          "destination": "lib/native/libsun_apple_native.dylib"
+        }
+      ]
+    }
+  ],
+  "exports": [
+    {
+      "path": "LICENSE",
+      "destination": "share/sun_apple/LICENSE"
+    }
+  ],
   "steps": [
     {
       "name": "capture",
@@ -60,10 +153,6 @@
           "arm64-apple-darwin": true
         }
       },
-      "requires": [
-        "capture",
-        "movie"
-      ],
       "command": [
         "xcrun",
         "ar",
@@ -78,6 +167,10 @@
       ],
       "outputs": [
         "${SUN_BUILD}/native/libsun_apple_native.a"
+      ],
+      "requires": [
+        "capture",
+        "movie"
       ]
     },
     {
@@ -88,10 +181,6 @@
           "arm64-apple-darwin": true
         }
       },
-      "requires": [
-        "capture",
-        "movie"
-      ],
       "command": [
         "xcrun",
         "clang",
@@ -126,99 +215,10 @@
       ],
       "outputs": [
         "${SUN_BUILD}/native/libsun_apple_native.dylib"
-      ]
-    }
-  ],
-  "entrypoints": [
-    {
-      "name": "sun_apple",
-      "path": "src/sun_apple.sun",
-      "type": "library",
-      "export": true,
-      "enabled": {
-        "default": false,
-        "target": {
-          "arm64-apple-darwin": true
-        }
-      },
-      "steps": [
-        "native",
-        "native_shared"
       ],
-      "resources": [
-        {
-          "path": "${SUN_BUILD}/native/libsun_apple_native.a",
-          "destination": "native/libsun_apple_native.a"
-        }
-      ]
-    },
-    {
-      "name": "bindings_smoke",
-      "path": "tests/main.sun",
-      "type": "binary",
-      "export": false,
-      "enabled": {
-        "default": false,
-        "target": {
-          "arm64-apple-darwin": true
-        }
-      },
       "requires": [
-        "sun_apple"
-      ],
-      "compile_args": [
-        "--dynamic"
-      ],
-      "link_args": [
-        "-lobjc",
-        "-framework",
-        "AppKit",
-        "-framework",
-        "ScreenCaptureKit",
-        "-framework",
-        "AVFoundation",
-        "-framework",
-        "CoreMedia",
-        "-framework",
-        "Foundation",
-        "-framework",
-        "CoreFoundation",
-        "-framework",
-        "CoreGraphics",
-        "-framework",
-        "CoreVideo",
-        "-framework",
-        "CoreImage",
-        "-framework",
-        "ImageIO"
-      ]
-    }
-  ],
-  "exports": [
-    {
-      "path": "LICENSE",
-      "destination": "share/sun_apple/LICENSE"
-    }
-  ],
-  "packages": [
-    {
-      "name": "sun_apple",
-      "entrypoints": [
-        "sun_apple"
-      ],
-      "resources": [
-        {
-          "path": "LICENSE",
-          "destination": "share/sun_apple/LICENSE"
-        },
-        {
-          "path": "${SUN_BUILD}/native/libsun_apple_native.a",
-          "destination": "lib/native/libsun_apple_native.a"
-        },
-        {
-          "path": "${SUN_BUILD}/native/libsun_apple_native.dylib",
-          "destination": "lib/native/libsun_apple_native.dylib"
-        }
+        "capture",
+        "movie"
       ]
     }
   ]
